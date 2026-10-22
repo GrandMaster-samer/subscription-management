@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subscription tracker</title>
+<style>
+  :root {
+    --bg: #edf0f3;
+    --panel: #ffffff;
+    --ink: #14202b;
+    --soft: #5a6877;
+    --line: #cfd7df;
+    --accent: #0f6b66;
+    --ok: #1d7a4d;
+    --soon: #a85a00;
+    --late: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.45;
+  }
+  [hidden] { display: none !important; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 16px 56px; }
+  h1 { margin: 0 0 4px; font-size: 1.9rem; line-height: 1.15; }
+  h2 { margin: 0 0 12px; font-size: 1.1rem; }
+  .lede { margin: 0 0 20px; color: var(--soft); max-width: 60ch; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+
+  /* Summary filters */
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .stat {
+    text-align: left;
+    padding: 12px 14px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .stat strong { display: block; font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--soft); font-size: .92rem; }
+  .stat[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .stat.soon strong { color: var(--soon); }
+  .stat.late strong { color: var(--late); }
+  .income { margin: 0 0 16px; color: var(--soft); }
+  .income b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* Controls */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  input, select, button { font: inherit; }
+  input[type="search"], input[type="text"], input[type="number"], input[type="date"] {
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid #8a97a5;
+    border-radius: 8px;
+  }
+  .controls input[type="search"] { flex: 1 1 220px; width: auto; }
+  .btn {
+    min-height: 44px;
+    padding: 8px 16px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn.quiet { color: var(--ink); background: #fff; border-color: #8a97a5; }
+  .btn.small { min-height: 38px; padding: 6px 12px; font-size: .92rem; }
+  .btn.danger { color: var(--late); background: #fff; border-color: var(--late); }
+  :focus-visible { outline: 3px solid #1f6feb; outline-offset: 2px; }
+
+  /* Add form */
+  .form-grid { display: grid; grid-template-columns: 2fr 2fr 1fr 1.4fr; gap: 10px; align-items: end; }
+  .form-grid label { display: block; margin-bottom: 4px; font-size: .92rem; font-weight: 600; }
+  .error { min-height: 1.4em; margin: 10px 0 0; color: var(--late); font-weight: 600; }
+
+  /* List */
+  .list { list-style: none; margin: 0; padding: 0; }
+  .item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 14px;
+    padding: 14px 14px 14px 16px;
+    margin-bottom: 10px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 6px solid var(--ok);
+    border-radius: 10px;
+  }
+  .item.soon { border-left-color: var(--soon); }
+  .item.late { border-left-color: var(--late); }
+  .name { font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
+  .meta { color: var(--soft); font-size: .95rem; }
+  .when { grid-column: 1; font-variant-numeric: tabular-nums; }
+  .when .badge { font-weight: 700; }
+  .item .badge { color: var(--ok); }
+  .item.soon .badge { color: var(--soon); }
+  .item.late .badge { color: var(--late); }
+  .actions { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+  .empty { padding: 28px 16px; text-align: center; color: var(--soft); background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
+  .foot { margin-top: 20px; color: var(--soft); font-size: .9rem; }
+
+  @media (max-width: 640px) {
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .form-grid .wide { grid-column: 1 / -1; }
+    .item { grid-template-columns: 1fr; }
+    .actions { grid-column: 1; grid-row: auto; flex-direction: row; flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Subscription tracker</h1>
+  <p class="lede">Keep track of who is subscribed, what they pay and when each subscription expires. The data stays in this browser only. The names below are made-up samples.</p>
+
+  <div class="summary" role="group" aria-label="Filter by status">
+    <button class="stat" type="button" data-filter="all" aria-pressed="true"><strong id="n-all">0</strong><span>All</span></button>
+    <button class="stat" type="button" data-filter="ok" aria-pressed="false"><strong id="n-ok">0</strong><span>Active</span></button>
+    <button class="stat soon" type="button" data-filter="soon" aria-pressed="false"><strong id="n-soon">0</strong><span>Due within 7 days</span></button>
+    <button class="stat late" type="button" data-filter="late" aria-pressed="false"><strong id="n-late">0</strong><span>Expired</span></button>
+  </div>
+  <p class="income">Monthly income from non-expired subscriptions: <b id="income">$0</b></p>
+
+  <section class="panel" aria-labelledby="add-title">
+    <h2 id="add-title">Add a subscription</h2>
+    <form id="add-form" novalidate>
+      <div class="form-grid">
+        <div class="wide">
+          <label for="f-name">Customer name</label>
+          <input id="f-name" type="text" maxlength="60" autocomplete="off">
+        </div>
+        <div class="wide">
+          <label for="f-plan">Package</label>
+          <input id="f-plan" type="text" list="plans" maxlength="60" autocomplete="off">
+          <datalist id="plans">
+            <option value="Sports package"></option>
+            <option value="Movies package"></option>
+            <option value="Internet TV (IPTV)"></option>
+            <option value="Satellite basic"></option>
+          </datalist>
+        </div>
+        <div>
+          <label for="f-price">Price / month ($)</label>
+          <input id="f-price" type="number" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label for="f-date">Expires on</label>
+          <input id="f-date" type="date">
+        </div>
+      </div>
+      <p class="error" id="form-error" role="alert"></p>
+      <button class="btn" type="submit">Add subscription</button>
+    </form>
+  </section>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search by name or package" aria-label="Search by name or package">
+    <button class="btn quiet" id="export-btn" type="button">Export CSV</button>
+  </div>
+
+  <ul class="list" id="list"></ul>
+  <div class="empty" id="empty" hidden></div>
+
+  <p class="foot">
+    <button class="btn quiet small" id="reset-btn" type="button">Reset to sample data</button>
+  </p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const KEY = 'subscription-tracker-v1';
+  const DAY = 86400000;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- date helpers (all dates are local yyyy-mm-dd strings) ----------
+  const pad = (n) => String(n).padStart(2, '0');
+  const toISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const startOfToday = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+  const daysLeft = (iso) => Math.round((parseISO(iso) - startOfToday()) / DAY);
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  function addMonths(d, n) {
+    const day = d.getDate();
+    const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(day, last));
+    return target;
+  }
+  const niceDate = (iso) => parseISO(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+  function statusOf(iso) {
+    const n = daysLeft(iso);
+    return n < 0 ? 'late' : n <= 7 ? 'soon' : 'ok';
+  }
+  function statusText(iso) {
+    const n = daysLeft(iso);
+    if (n < 0) return `Expired ${-n} day${n === -1 ? '' : 's'} ago`;
+    if (n === 0) return 'Expires today';
+    if (n <= 7) return `Due in ${n} day${n === 1 ? '' : 's'}`;
+    return `Active, ${n} days left`;
+  }
+  const money = (n) => '$' + (Math.round(n * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  // ---------- data ----------
+  function sampleData() {
+    const t = startOfToday();
+    const rows = [
+      ['Sample Customer 1', 'Sports package', 25, -6],
+      ['Sample Customer 2', 'Internet TV (IPTV)', 15, 3],
+      ['Sample Customer 3', 'Movies package', 12, 24],
+      ['Sample Customer 4', 'Sports package', 25, 58],
+      ['Sample Customer 5', 'Satellite basic', 10, 7],
+      ['Sample Customer 6', 'Internet TV (IPTV)', 15, -20]
+    ];
+    return rows.map(([name, plan, price, offset], i) => ({
+      id: 's' + i, name, plan, price, expires: toISO(addDays(t, offset))
+    }));
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) { /* storage unavailable or corrupted: fall back to samples */ }
+    return sampleData();
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch (e) { /* ignore */ }
+  }
+
+  let items = load();
+  let filter = 'all';
+  let query = '';
+
+  // ---------- render ----------
+  function render() {
+    const counts = { all: items.length, ok: 0, soon: 0, late: 0 };
+    let income = 0;
+    items.forEach((it) => {
+      const s = statusOf(it.expires);
+      counts[s] += 1;
+      if (s !== 'late') income += Number(it.price) || 0;
+    });
+    $('n-all').textContent = counts.all;
+    $('n-ok').textContent = counts.ok;
+    $('n-soon').textContent = counts.soon;
+    $('n-late').textContent = counts.late;
+    $('income').textContent = money(income);
+
+    document.querySelectorAll('.stat').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
+    });
+
+    const q = query.trim().toLowerCase();
+    const shown = items
+      .filter((it) => filter === 'all' || statusOf(it.expires) === filter)
+      .filter((it) => !q || it.name.toLowerCase().includes(q) || it.plan.toLowerCase().includes(q))
+      .sort((a, b) => a.expires.localeCompare(b.expires));
+
+    const list = $('list');
+    list.textContent = '';
+    shown.forEach((it) => {
+      const s = statusOf(it.expires);
+      const li = document.createElement('li');
+      li.className = 'item ' + s;
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = it.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `${it.plan || 'No package'} · ${money(Number(it.price) || 0)} / month`;
+
+      const when = document.createElement('div');
+      when.className = 'when';
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = statusText(it.expires);
+      when.append(badge, document.createTextNode(` · expires ${niceDate(it.expires)}`));
+
+      const head = document.createElement('div');
+      head.append(name, meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const renew = document.createElement('button');
+      renew.type = 'button';
+      renew.className = 'btn small';
+      renew.dataset.action = 'renew';
+      renew.dataset.id = it.id;
+      renew.textContent = 'Renew 1 month';
+      renew.setAttribute('aria-label', `Renew ${it.name} for 1 month`);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn small danger';
+      del.dataset.action = 'delete';
+      del.dataset.id = it.id;
+      del.textContent = 'Delete';
+      del.setAttribute('aria-label', `Delete ${it.name}`);
+      actions.append(renew, del);
+
+      li.append(head, when, actions);
+      list.appendChild(li);
+    });
+
+    const empty = $('empty');
+    empty.hidden = shown.length > 0;
+    if (!shown.length) {
+      empty.textContent = items.length
+        ? 'No subscriptions match. Clear the search or choose another filter.'
+        : 'No subscriptions yet. Add the first one above.';
+    }
+  }
+
+  // ---------- actions ----------
+  function addItem(e) {
+    e.preventDefault();
+    const name = $('f-name').value.trim();
+    const plan = $('f-plan').value.trim();
+    const priceRaw = $('f-price').value.trim();
+    const expires = $('f-date').value;
+    const err = $('form-error');
+    if (!name) { err.textContent = 'Enter the customer name.'; $('f-name').focus(); return; }
+    if (!expires) { err.textContent = 'Choose the expiry date.'; $('f-date').focus(); return; }
+    const price = priceRaw === '' ? 0 : Number(priceRaw);
+    if (!Number.isFinite(price) || price < 0) { err.textContent = 'The price must be 0 or more.'; $('f-price').focus(); return; }
+    err.textContent = '';
+    items.push({ id: 'u' + Date.now() + Math.random().toString(36).slice(2, 6), name, plan, price, expires });
+    save();
+    e.target.reset();
+    $('f-date').value = toISO(addMonths(startOfToday(), 1));
+    render();
+  }
+
+  function renew(id) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    // Renew from today if already expired, otherwise from the current expiry date.
+    const base = daysLeft(it.expires) < 0 ? startOfToday() : parseISO(it.expires);
+    it.expires = toISO(addMonths(base, 1));
+    save();
+    render();
+  }
+
+  function remove(id) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    if (!window.confirm(`Delete ${it.name}? This cannot be undone.`)) return;
+    items = items.filter((x) => x.id !== id);
+    save();
+    render();
+  }
+
+  function csvCell(v) {
+    let s = String(v);
+    if (/^[=+\-@]/.test(s)) s = "'" + s;           // stop spreadsheet formula injection
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  function exportCsv() {
+    const rows = [['Name', 'Package', 'Price per month', 'Expires', 'Status']];
+    items.slice().sort((a, b) => a.expires.localeCompare(b.expires)).forEach((it) => {
+      rows.push([it.name, it.plan, it.price, it.expires, statusText(it.expires)]);
+    });
+    const csv = rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'subscriptions-' + toISO(startOfToday()) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // ---------- events ----------
+  $('add-form').addEventListener('submit', addItem);
+  $('search').addEventListener('input', (e) => { query = e.target.value; render(); });
+  $('export-btn').addEventListener('click', exportCsv);
+  $('reset-btn').addEventListener('click', () => {
+    if (!window.confirm('Replace everything with the sample data?')) return;
+    items = sampleData();
+    save();
+    render();
+  });
+  document.querySelector('.summary').addEventListener('click', (e) => {
+    const b = e.target.closest('.stat');
+    if (!b) return;
+    filter = b.dataset.filter;
+    render();
+  });
+  $('list').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-action]');
+    if (!b) return;
+    if (b.dataset.action === 'renew') renew(b.dataset.id);
+    else if (b.dataset.action === 'delete') remove(b.dataset.id);
+  });
+
+  $('f-date').value = toISO(addMonths(startOfToday(), 1));
+  render();
+})();
+</script>
+</body>
+</html>
