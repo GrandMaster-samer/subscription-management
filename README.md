@@ -4,7 +4,7 @@ A simple web page for tracking customer subscriptions: who is subscribed, which 
 
 It is a single `index.html` file with no libraries and no server. Built with HTML, CSS and JavaScript.
 
-> The names and data in the demo are made-up samples. Do not enter real customers' personal information if you publish your own copy online.
+
 
 ## Features
 
