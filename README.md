@@ -24,7 +24,7 @@ It is a single `index.html` file with no libraries and no server. Built with HTM
 
 ## Run it online with GitHub Pages
 
-In the repository go to **Settings → Pages**, choose the `main` branch and the root folder, then save. The page will be available at `https://GrandMaster-samer.github.io/<repository-name>/`.
+In the repository go to **Settings → Pages**, choose the `main` branch and the root folder, then save. The page will be available at `https://GrandMaster-samer.github.io/subscription-management/`.
 
 ## Notes
 
